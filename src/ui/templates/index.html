@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emotion Sound System</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+
+    <!-- HTMX for interactive UI without heavy JavaScript -->
+    <script src="https://unpkg.com/htmx.org@1.9.2"></script>
+
+    <!-- Custom CSS -->
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            padding-top: 2rem;
+        }
+
+        .sentiment-container {
+            margin-top: 2rem;
+            display: none;
+        }
+
+        .sentiment-container.show {
+            display: block;
+        }
+
+        .word-sentiment {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            margin: 0.25rem;
+            border-radius: 0.25rem;
+            font-size: 0.9rem;
+        }
+
+        .sentiment-positive {
+            background-color: rgba(40, 167, 69, 0.2);
+            border: 1px solid rgba(40, 167, 69, 0.4);
+        }
+
+        .sentiment-neutral {
+            background-color: rgba(108, 117, 125, 0.2);
+            border: 1px solid rgba(108, 117, 125, 0.4);
+        }
+
+        .sentiment-negative {
+            background-color: rgba(220, 53, 69, 0.2);
+            border: 1px solid rgba(220, 53, 69, 0.4);
+        }
+
+        .sentiment-meter {
+            height: 2rem;
+            background: linear-gradient(to right, #dc3545, #6c757d, #28a745);
+            border-radius: 1rem;
+            position: relative;
+            margin: 1rem 0;
+        }
+
+        .sentiment-marker {
+            position: absolute;
+            width: 1rem;
+            height: 2rem;
+            background-color: #212529;
+            border-radius: 0.5rem;
+            top: 0;
+            transform: translateX(-50%);
+        }
+
+        #loading-indicator {
+            display: none;
+        }
+
+        .htmx-request #loading-indicator {
+            display: inline-block;
+        }
+
+        .music-controls {
+            margin-top: 1rem;
+        }
+
+        /* New styles for enhanced emotion display */
+        .primary-emotion-value {
+            font-weight: 600;
+            background-color: rgba(99, 102, 241, 0.1);
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .emotion-spectrum-container {
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+        }
+
+        .progress {
+            margin-top: 5px;
+        }
+
+        .progress-bar {
+            background-color: #6366f1;
+        }
+
+        .word-sentiment.sentiment-happy,
+        .word-sentiment.sentiment-elated,
+        .word-sentiment.sentiment-ecstatic,
+        .word-sentiment.sentiment-content,
+        .word-sentiment.sentiment-pleased {
+            background-color: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: #065f46;
+        }
+
+        .word-sentiment.sentiment-neutral,
+        .word-sentiment.sentiment-calm,
+        .word-sentiment.sentiment-indifferent {
+            background-color: rgba(100, 116, 139, 0.15);
+            border: 1px solid rgba(100, 116, 139, 0.3);
+            color: #475569;
+        }
+
+        .word-sentiment.sentiment-disappointed,
+        .word-sentiment.sentiment-sad,
+        .word-sentiment.sentiment-sorrowful,
+        .word-sentiment.sentiment-miserable,
+        .word-sentiment.sentiment-despairing {
+            background-color: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #b91c1c;
+        }
+
+        .word-sentiment.sentiment-annoyed,
+        .word-sentiment.sentiment-angry,
+        .word-sentiment.sentiment-furious {
+            background-color: rgba(249, 115, 22, 0.15);
+            border: 1px solid rgba(249, 115, 22, 0.3);
+            color: #c2410c;
+        }
+
+        .word-sentiment.sentiment-nervous,
+        .word-sentiment.sentiment-anxious,
+        .word-sentiment.sentiment-scared,
+        .word-sentiment.sentiment-terrified {
+            background-color: rgba(139, 92, 246, 0.15);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            color: #6d28d9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="text-center mb-5">
+            <h1 class="display-4">Emotion Sound System</h1>
+            <p class="lead">Convert text emotions into musical melodies</p>
+        </header>
+
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card shadow">
+                    <div class="card-body">
+                        <h2 class="card-title">Enter your text</h2>
+                        <p class="card-text text-muted">Type or paste text to analyze its emotional content and generate music.</p>
+
+                        <form id="text-form">
+                            <div class="mb-3">
+                                <textarea id="text-input" name="text" class="form-control" rows="5" placeholder="Enter text here..." required></textarea>
+                            </div>
+
+                            <!-- Audio input -->
+                            <div class="mb-3">
+                                <label for="audio-input" class="form-label">Record or upload audio</label>
+                                <div class="d-flex gap-2 align-items-center">
+                                    <button type="button" class="btn btn-outline-primary" id="record-button">
+                                        <i class="bi bi-mic-fill"></i> Record
+                                    </button>
+                                    <input type="file" id="audio-input" name="audio" class="form-control" accept="audio/*" />
+                                </div>
+                                <div id="audio-preview" class="mt-2" style="display: none;">
+                                    <audio id="audio-player" controls></audio>
+                                </div>
+                            </div>
+
+                            <!-- Image input -->
+                            <div class="mb-3">
+                                <label for="image-input" class="form-label">Take or upload photo</label>
+                                <div class="d-flex gap-2 align-items-center">
+                                    <button type="button" class="btn btn-outline-primary" id="camera-button">
+                                        <i class="bi bi-camera-fill"></i> Camera
+                                    </button>
+                                    <input type="file" id="image-input" name="image" class="form-control" accept="image/*" />
+                                </div>
+                                <div id="image-preview" class="mt-2" style="display: none;">
+                                    <img id="preview-img" class="img-fluid rounded" style="max-height: 200px;" />
+                                </div>
+                                <video id="camera-feed" style="display: none;" playsinline autoplay></video>
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center">
+                                <button type="button" id="analyze-btn" class="btn btn-primary">
+                                    <span id="loading-indicator-analyze" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" style="display: none;"></span>
+                                    Analyze Sentiment
+                                </button>
+                                <button type="button" id="generate-btn" class="btn btn-success">
+                                    <span id="loading-indicator-generate" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" style="display: none;"></span>
+                                    Generate Music
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div id="sentiment-results" class="mt-4"></div>
+                <div id="music-results" class="mt-4"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Templates for HTMX responses -->
+    <template id="sentiment-template">
+        <div class="card shadow">
+            <div class="card-body">
+                <h3 class="card-title">Sentiment Analysis Results</h3>
+
+                <div class="overall-sentiment mb-4">
+                    <h4>Overall Sentiment</h4>
+                    <div id="primary-emotion" class="mb-2">
+                        <strong>Primary Emotion:</strong> <span class="primary-emotion-value"></span>
+                    </div>
+                    <div class="sentiment-meter">
+                        <div class="sentiment-marker"></div>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>Negative</span>
+                        <span>Neutral</span>
+                        <span>Positive</span>
+                    </div>
+                </div>
+
+                <div class="word-sentiments">
+                    <h4>Word-level Analysis</h4>
+                    <div class="word-sentiment-container"></div>
+                </div>
+
+                <div id="emotion-spectrum" class="mt-4" style="display: none;">
+                    <h4>Emotion Spectrum</h4>
+                    <div class="emotion-spectrum-container"></div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template id="music-template">
+        <div class="card shadow">
+            <div class="card-body">
+                <h3 class="card-title">Generated Music</h3>
+                <div class="alert alert-success">
+                    <i class="bi bi-music-note"></i> Music has been generated successfully!
+                </div>
+
+                <div class="music-controls">
+                    <a href="" class="btn btn-primary download-link">
+                        <i class="bi bi-download"></i> Download MIDI
+                    </a>
+                    <a href="" class="btn btn-secondary visualize-link">
+                        <i class="bi bi-eye"></i> Visualize
+                    </a>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- JavaScript for client-side interactions -->
+    <script>
+        // Media handling
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let stream = null;
+
+        // Record button handling
+        document.getElementById('record-button').addEventListener('click', async function() {
+            try {
+                if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+                    // Start recording
+                    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+
+                    mediaRecorder.ondataavailable = (event) => {
+                        audioChunks.push(event.data);
+                    };
+
+                    mediaRecorder.onstop = () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                        const audioUrl = URL.createObjectURL(audioBlob);
+                        const audioPlayer = document.getElementById('audio-player');
+                        audioPlayer.src = audioUrl;
+                        document.getElementById('audio-preview').style.display = 'block';
+
+                        // Create a File object from the Blob
+                        const audioFile = new File([audioBlob], 'recording.wav', { type: 'audio/wav' });
+
+                        // Create a DataTransfer object and add the file
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(audioFile);
+
+                        // Set the file input's files
+                        document.getElementById('audio-input').files = dataTransfer.files;
+                    };
+
+                    audioChunks = [];
+                    mediaRecorder.start();
+                    this.innerHTML = '<i class="bi bi-stop-fill"></i> Stop';
+                    this.classList.replace('btn-outline-primary', 'btn-danger');
+                } else {
+                    // Stop recording
+                    mediaRecorder.stop();
+                    stream.getTracks().forEach(track => track.stop());
+                    this.innerHTML = '<i class="bi bi-mic-fill"></i> Record';
+                    this.classList.replace('btn-danger', 'btn-outline-primary');
+                }
+            } catch (err) {
+                console.error('Error accessing microphone:', err);
+                alert('Error accessing microphone. Please ensure you have granted permission.');
+            }
+        });
+
+        // Camera button handling
+        document.getElementById('camera-button').addEventListener('click', async function() {
+            const cameraFeed = document.getElementById('camera-feed');
+
+            try {
+                if (cameraFeed.style.display === 'none') {
+                    // Start camera
+                    stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    cameraFeed.srcObject = stream;
+                    cameraFeed.style.display = 'block';
+                    this.innerHTML = '<i class="bi bi-camera-fill"></i> Capture';
+                } else {
+                    // Capture photo
+                    const canvas = document.createElement('canvas');
+                    canvas.width = cameraFeed.videoWidth;
+                    canvas.height = cameraFeed.videoHeight;
+                    canvas.getContext('2d').drawImage(cameraFeed, 0, 0);
+
+                    // Convert to blob
+                    canvas.toBlob((blob) => {
+                        const imageUrl = URL.createObjectURL(blob);
+                        const previewImg = document.getElementById('preview-img');
+                        previewImg.src = imageUrl;
+                        document.getElementById('image-preview').style.display = 'block';
+
+                        // Create a File object from the Blob
+                        const imageFile = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
+
+                        // Create a DataTransfer object and add the file
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(imageFile);
+
+                        // Set the file input's files
+                        document.getElementById('image-input').files = dataTransfer.files;
+                    }, 'image/jpeg');
+
+                    // Stop camera
+                    stream.getTracks().forEach(track => track.stop());
+                    cameraFeed.style.display = 'none';
+                    this.innerHTML = '<i class="bi bi-camera-fill"></i> Camera';
+                }
+            } catch (err) {
+                console.error('Error accessing camera:', err);
+                alert('Error accessing camera. Please ensure you have granted permission.');
+            }
+        });
+
+        // File input preview handling
+        document.getElementById('audio-input').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const audioUrl = URL.createObjectURL(file);
+                const audioPlayer = document.getElementById('audio-player');
+                audioPlayer.src = audioUrl;
+                document.getElementById('audio-preview').style.display = 'block';
+            }
+        });
+
+        document.getElementById('image-input').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const imageUrl = URL.createObjectURL(file);
+                const previewImg = document.getElementById('preview-img');
+                previewImg.src = imageUrl;
+                document.getElementById('image-preview').style.display = 'block';
+            }
+        });
+
+        // Fix the analyze button click handler
+        document.getElementById('analyze-btn').addEventListener('click', function() {
+            const text = document.getElementById('text-input').value.trim();
+
+            if (!text) {
+                alert('Please enter some text before analyzing.');
+                return;
+            }
+
+            // Show loading indicator
+            document.getElementById('loading-indicator-analyze').style.display = 'inline-block';
+
+            // Create JSON data
+            const data = {
+                text: text
+            };
+
+            // Send request using fetch API
+            fetch('/analyze', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'HX-Request': 'true',
+                    'HX-Target': 'sentiment-results'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Hide loading indicator
+                document.getElementById('loading-indicator-analyze').style.display = 'none';
+
+                // Update the UI with results
+                updateSentimentDisplay(data);
+            })
+            .catch(error => {
+                // Hide loading indicator
+                document.getElementById('loading-indicator-analyze').style.display = 'none';
+
+                console.error('Error analyzing text:', error);
+                document.getElementById('sentiment-results').innerHTML = `
+                    <div class="alert alert-danger">
+                        <strong>Error:</strong> ${error.message || 'An error occurred during analysis'}
+                    </div>
+                `;
+            });
+        });
+
+        // Fix the generate music button click handler
+        document.getElementById('generate-btn').addEventListener('click', function() {
+            const text = document.getElementById('text-input').value.trim();
+
+            if (!text) {
+                alert('Please enter some text before generating music.');
+                return;
+            }
+
+            // Show loading indicator
+            document.getElementById('loading-indicator-generate').style.display = 'inline-block';
+
+            // Create JSON data
+            const data = {
+                text: text
+            };
+
+            // Send request using fetch API
+            fetch('/generate-music', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'HX-Request': 'true',
+                    'HX-Target': 'music-results'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Hide loading indicator
+                document.getElementById('loading-indicator-generate').style.display = 'none';
+
+                // Update the UI with results
+                updateMusicDisplay(data);
+            })
+            .catch(error => {
+                // Hide loading indicator
+                document.getElementById('loading-indicator-generate').style.display = 'none';
+
+                console.error('Error generating music:', error);
+                document.getElementById('music-results').innerHTML = `
+                    <div class="alert alert-danger">
+                        <strong>Error:</strong> ${error.message || 'An error occurred while generating music'}
+                    </div>
+                `;
+            });
+        });
+
+        function updateSentimentDisplay(results) {
+            console.log("Sentiment results:", results);
+
+            const template = document.getElementById('sentiment-template');
+            const clone = template.content.cloneNode(true);
+
+            try {
+                // Update primary emotion if available
+                if (results.text_sentiment && results.text_sentiment.primary_emotion) {
+                    const emotionIntensity = results.text_sentiment.emotion_intensity || 0;
+                    const primaryEmotion = clone.querySelector('.primary-emotion-value');
+                    if (primaryEmotion) {
+                        primaryEmotion.textContent =
+                            results.text_sentiment.primary_emotion +
+                            ` (Intensity: ${(emotionIntensity * 100).toFixed(0)}%)`;
+                    }
+                }
+
+                // Update sentiment marker position
+                const compound = results.text_sentiment ? results.text_sentiment.compound : 0;
+                const markerPosition = ((compound + 1) / 2) * 100;
+                const sentimentMarker = clone.querySelector('.sentiment-marker');
+                if (sentimentMarker) {
+                    sentimentMarker.style.left = `${markerPosition}%`;
+                }
+
+                // Update word sentiments
+                const container = clone.querySelector('.word-sentiment-container');
+                if (container && results.word_sentiments && Array.isArray(results.word_sentiments)) {
+                    results.word_sentiments.forEach(word => {
+                        if (!word) return; // Skip undefined words
+
+                        try {
+                            // Safely extract word text and score with fallbacks
+                            let wordText = "unknown";
+                            let score = 0;
+                            let emotion = 'neutral';
+
+                            if (typeof word === 'object' && word !== null) {
+                                // Handle dictionary format
+                                if (word.word !== undefined) {
+                                    wordText = word.word;
+                                } else if (Array.isArray(word) && word.length > 0) {
+                                    wordText = word[0];
+                                }
+
+                                if (word.score !== undefined) {
+                                    score = Number(word.score) || 0;
+                                } else if (Array.isArray(word) && word.length > 1) {
+                                    score = Number(word[1]) || 0;
+                                }
+
+                                if (word.specific_emotion) {
+                                    emotion = word.specific_emotion;
+                                } else if (word.emotion) {
+                                    emotion = word.emotion;
+                                } else {
+                                    emotion = score > 0.05 ? 'positive' : (score < -0.05 ? 'negative' : 'neutral');
+                                }
+                            } else if (Array.isArray(word)) {
+                                // Handle tuple format
+                                if (word.length > 0) wordText = String(word[0]);
+                                if (word.length > 1) score = Number(word[1]) || 0;
+                                emotion = score > 0.05 ? 'positive' : (score < -0.05 ? 'negative' : 'neutral');
+                            }
+
+                            // Create and append the word sentiment element
+                            const span = document.createElement('span');
+                            span.className = `word-sentiment sentiment-${emotion}`;
+                            span.textContent = `${wordText} (${score.toFixed(2)})`;
+                            container.appendChild(span);
+                        } catch (wordError) {
+                            console.error("Error processing word:", wordError);
+                            // Continue with next word
+                        }
+                    });
+                }
+
+                // Update emotion spectrum if available
+                const spectrumSection = clone.getElementById('emotion-spectrum');
+                const spectrumContainer = clone.querySelector('.emotion-spectrum-container');
+
+                if (spectrumSection && spectrumContainer &&
+                    results.text_sentiment &&
+                    results.text_sentiment.emotion_spectrum &&
+                    Array.isArray(results.text_sentiment.emotion_spectrum) &&
+                    results.text_sentiment.emotion_spectrum.length > 0) {
+
+                    spectrumSection.style.display = 'block';
+
+                    results.text_sentiment.emotion_spectrum.forEach(emotion => {
+                        if (!emotion || typeof emotion !== 'object') return;
+
+                        try {
+                            const emotionName = emotion.emotion || 'unknown';
+                            const intensity = Number(emotion.intensity) || 0;
+
+                            const div = document.createElement('div');
+                            div.className = 'mb-2';
+                            div.innerHTML = `
+                                <strong>${emotionName}:</strong>
+                                <div class="progress" style="height: 15px;">
+                                    <div class="progress-bar" role="progressbar"
+                                        style="width: ${intensity * 100}%;"
+                                        aria-valuenow="${intensity * 100}"
+                                        aria-valuemin="0"
+                                        aria-valuemax="100">
+                                        ${(intensity * 100).toFixed(0)}%
+                                    </div>
+                                </div>
+                            `;
+                            spectrumContainer.appendChild(div);
+                        } catch (emotionError) {
+                            console.error("Error processing emotion:", emotionError);
+                            // Continue with next emotion
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error("Error updating sentiment display:", error);
+                document.getElementById('sentiment-results').innerHTML = `
+                    <div class="alert alert-danger">
+                        <strong>Error:</strong> Failed to display sentiment analysis results: ${error.message}
+                    </div>
+                `;
+                return;
+            }
+
+            document.getElementById('sentiment-results').innerHTML = '';
+            document.getElementById('sentiment-results').appendChild(clone);
+        }
+
+        function updateMusicDisplay(results) {
+            const template = document.getElementById('music-template');
+            const clone = template.content.cloneNode(true);
+
+            try {
+                // Update download link
+                const downloadLink = clone.querySelector('.download-link');
+                if (downloadLink && results.midi_file) {
+                    downloadLink.href = `/download/${results.midi_file}`;
+                }
+
+                // Update visualize link
+                const visualizeLink = clone.querySelector('.visualize-link');
+                if (visualizeLink && results.midi_file) {
+                    visualizeLink.href = `/visualize/${results.midi_file}`;
+                }
+            } catch (error) {
+                console.error("Error updating music display:", error);
+                document.getElementById('music-results').innerHTML = `
+                    <div class="alert alert-danger">
+                        <strong>Error:</strong> Failed to display music results: ${error.message}
+                    </div>
+                `;
+                return;
+            }
+
+            document.getElementById('music-results').innerHTML = '';
+            document.getElementById('music-results').appendChild(clone);
+        }
+    </script>
+</body>
+</html>

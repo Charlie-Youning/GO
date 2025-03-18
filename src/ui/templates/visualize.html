@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Music Visualization - Emotion Sound System</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- HTMX for interactive UI without heavy JavaScript -->
+    <script src="https://unpkg.com/htmx.org@1.9.2"></script>
+    
+    <!-- Custom CSS -->
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            padding-top: 2rem;
+        }
+        
+        .visualization-container {
+            height: 300px;
+            background-color: #212529;
+            border-radius: 0.5rem;
+            position: relative;
+            overflow: hidden;
+            margin: 2rem 0;
+        }
+        
+        .note {
+            position: absolute;
+            height: 20px;
+            background-color: #28a745;
+            border-radius: 0.25rem;
+            opacity: 0.8;
+            transition: transform 0.3s ease-out;
+        }
+        
+        .note-negative {
+            background-color: #dc3545;
+        }
+        
+        .note-neutral {
+            background-color: #6c757d;
+        }
+        
+        .note-positive {
+            background-color: #28a745;
+        }
+        
+        .piano-roll {
+            height: 100%;
+            width: 100%;
+            position: relative;
+        }
+        
+        .piano-key {
+            position: absolute;
+            left: 0;
+            width: 100%;
+            height: 1px;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .piano-key-label {
+            position: absolute;
+            left: 5px;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.7rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="text-center mb-5">
+            <h1 class="display-4">Music Visualization</h1>
+            <p class="lead">Visual representation of the generated melody</p>
+        </header>
+        
+        <div class="row justify-content-center">
+            <div class="col-md-10">
+                <div class="card shadow">
+                    <div class="card-body">
+                        <h2 class="card-title">Melody: {{ filename }}</h2>
+                        
+                        <div class="visualization-container">
+                            <div class="piano-roll" id="piano-roll">
+                                <!-- Piano keys will be added by JavaScript -->
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between align-items-center">
+                            <a href="/" class="btn btn-secondary">Back to Text Input</a>
+                            <a href="/download/{{ filename }}" class="btn btn-primary">Download MIDI</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- JavaScript for visualization -->
+    <script>
+        // This is a simplified visualization
+        // In a real application, you would parse the MIDI file and visualize the actual notes
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            const pianoRoll = document.getElementById('piano-roll');
+            
+            // Create piano keys (C3 to C5)
+            const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+            const totalNotes = 24; // 2 octaves
+            
+            for (let i = 0; i < totalNotes; i++) {
+                const octave = Math.floor(i / 12) + 3;
+                const noteName = noteNames[i % 12];
+                const noteLabel = `${noteName}${octave}`;
+                
+                const keyPosition = (totalNotes - i - 1) / totalNotes * 100;
+                
+                const pianoKey = document.createElement('div');
+                pianoKey.className = 'piano-key';
+                pianoKey.style.top = `${keyPosition}%`;
+                pianoRoll.appendChild(pianoKey);
+                
+                const keyLabel = document.createElement('div');
+                keyLabel.className = 'piano-key-label';
+                keyLabel.textContent = noteLabel;
+                keyLabel.style.top = `${keyPosition}%`;
+                pianoRoll.appendChild(keyLabel);
+            }
+            
+            // Create some random notes for demonstration
+            // In a real application, these would be based on the actual MIDI file
+            const sentiments = ['positive', 'neutral', 'negative'];
+            const noteCount = 20;
+            
+            for (let i = 0; i < noteCount; i++) {
+                const note = document.createElement('div');
+                note.className = `note note-${sentiments[Math.floor(Math.random() * sentiments.length)]}`;
+                
+                // Random position and width
+                const noteHeight = Math.floor(Math.random() * totalNotes);
+                const notePosition = (totalNotes - noteHeight - 1) / totalNotes * 100;
+                const noteStart = i * (100 / noteCount);
+                const noteDuration = Math.random() * 5 + 2;
+                
+                note.style.top = `${notePosition}%`;
+                note.style.left = `${noteStart}%`;
+                note.style.width = `${noteDuration}%`;
+                
+                pianoRoll.appendChild(note);
+            }
+        });
+    </script>
+</body>
+</html> 
